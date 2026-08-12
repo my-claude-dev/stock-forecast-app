@@ -60,19 +60,35 @@ Production Branch を `main` に戻すか、そのまま運用するかを選べ
 ## コマンド
 
 ```bash
-npm run dev     # 開発サーバー起動
-npm run build   # 本番ビルド
+npm run dev     # 開発サーバー起動(webpack)
+npm run build   # 本番ビルド(webpack)
 npm run start   # 本番サーバー起動
 npm run lint    # ESLint
 ```
+
+Next.js 16 は既定で Turbopack を使いますが、Service Worker のビルドを担う
+`@serwist/next` が現時点で Turbopack 未対応のため、`--webpack` を指定しています。
+(Turbopack 対応の `@serwist/turbopack` は執筆時点で experimental のため見送りました)
+
+## PWA 対応
+
+- `src/app/manifest.ts` : Web App Manifest(`/manifest.webmanifest`)
+- `src/app/sw.ts` : Service Worker のソース(ビルド時に `public/sw.js` へバンドル、Git管理外)
+- `src/app/icon.tsx` / `apple-icon.tsx` / `icons/*` : アプリアイコン(`next/og` の `ImageResponse` でコード生成、画像ファイルは未使用)
+
+Basic 認証の対象から `manifest.webmanifest` / `sw.js` / `icon` 系のパスのみ除外しています。
+ブラウザによっては manifest 等を認証情報なしで取得しようとし、保護したままだと
+「ホーム画面に追加」が失敗する場合があるためです。アプリ名・アイコン・キャッシュ用の
+汎用コードのみが公開され、実際のページ・株価データ・予測結果は引き続き Basic 認証で保護されます
+(`src/proxy.ts` 参照)。開発中は `disable: true` にしており、Service Worker は本番ビルドでのみ有効です。
 
 ## 開発状況
 
 - [x] プロジェクト初期セットアップ(雛形作成・Basic 認証・セキュリティヘッダー)
 - [x] 銘柄コード入力 → 過去株価・将来予測グラフ表示(`/` → `/stocks/[code]`)
+- [x] PWA 対応(manifest・Service Worker・アイコン)
 - [ ] Vercel へのデプロイ(後工程で実施予定)
 - [ ] J-Quants API への切り替え(銘柄名検索を含む)
-- [ ] PWA 対応(manifest・Service Worker)
 
 ### データソースと予測方式について(暫定)
 

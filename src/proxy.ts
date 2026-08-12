@@ -62,9 +62,17 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Protect every route, including API routes and the PWA manifest/service
-  // worker. Only Next.js's own internal static/image assets are excluded,
-  // since the browser re-sends cached Basic Auth credentials for them once
-  // the initial page request has been authenticated.
-  matcher: ["/((?!_next/static|_next/image).*)"],
+  // Protect every route, including all pages and API routes. The PWA
+  // manifest, icons, and service worker script are deliberately excluded:
+  // some browsers fetch the manifest/icons without credentials (per the Web
+  // App Manifest spec), so gating them can silently break "Add to Home
+  // Screen". None of these expose anything sensitive (just the app name,
+  // icon, and generic caching logic) — actual pages, stock data, and the
+  // forecast logic all stay behind Basic Auth. Next.js's own internal
+  // static/image assets are excluded too, since the browser re-sends cached
+  // Basic Auth credentials for them once the initial page request has been
+  // authenticated.
+  matcher: [
+    "/((?!_next/static|_next/image|manifest\\.webmanifest|sw\\.js|icons/|icon$|apple-icon$).*)",
+  ],
 };
