@@ -21,10 +21,41 @@ npm run dev
 
 [http://localhost:3000](http://localhost:3000) を開き、設定した ID/パスワードでログインします。
 
-### Vercel へのデプロイ
+### Vercel へのデプロイ(初めての方向け手順)
 
-Vercel プロジェクトの Environment Variables に `BASIC_AUTH_USER` と `BASIC_AUTH_PASSWORD` を設定してください。
-未設定のままデプロイすると、アプリは常に 401 を返します。
+Vercel はこのアプリを公開するためのホスティングサービスです。GitHub アカウントがあれば
+無料(Hobby プラン、クレジットカード不要)で使えます。以下は初回のみ必要な手順です。
+
+1. **Vercel アカウント作成**
+   - https://vercel.com/signup を開き、「Continue with GitHub」を選択
+   - このリポジトリがある GitHub アカウントでログインし、連携を許可する
+
+2. **プロジェクトのインポート**
+   - Vercel のダッシュボードで「Add New...」→「Project」
+   - リポジトリ一覧から `my-claude-dev/stock-forecast-app` を選択して「Import」
+     (表示されない場合は「Adjust GitHub App Permissions」からアクセスを許可)
+   - Framework Preset は自動で「Next.js」になるので変更不要
+
+3. **環境変数の設定(これを忘れると全ページが 401 エラーになります)**
+   - 同じ画面の「Environment Variables」で以下を追加
+     - `BASIC_AUTH_USER` : 好きなユーザー名
+     - `BASIC_AUTH_PASSWORD` : 好きなパスワード(推測されにくいもの)
+   - 「Deploy」をクリック
+
+4. **公開するブランチの切り替え**
+   - 開発中のコードは `main` ではなく `claude/stock-forecast-app-design-kdhyz1` ブランチにあるため、
+     最初の Production デプロイはビルドに失敗しますが問題ありません
+   - プロジェクトの「Settings」→「Git」→「Production Branch」を
+     `claude/stock-forecast-app-design-kdhyz1` に変更して保存
+   - 「Deployments」タブの最新デプロイの「...」メニューから「Redeploy」を実行
+
+5. **動作確認**
+   - デプロイ完了後に発行される `https://xxxxx.vercel.app` のような URL を開く
+   - ブラウザの Basic 認証ダイアログが出るので、手順 3 で設定した ID/パスワードを入力
+   - 「株価予測アプリ」というプレースホルダー画面が表示されれば成功
+
+以後はこのブランチに push するたびに自動で再デプロイされます。将来 `main` に機能をマージしたら、
+Production Branch を `main` に戻すか、そのまま運用するかを選べます。
 
 ## コマンド
 
