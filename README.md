@@ -64,6 +64,7 @@ npm run dev     # 開発サーバー起動(webpack)
 npm run build   # 本番ビルド(webpack)
 npm run start   # 本番サーバー起動
 npm run lint    # ESLint
+npm run test    # 単体テスト(Vitest)
 ```
 
 Next.js 16 は既定で Turbopack を使いますが、Service Worker のビルドを担う
@@ -82,11 +83,20 @@ Basic 認証の対象から `manifest.webmanifest` / `sw.js` / `icon` 系のパ�
 汎用コードのみが公開され、実際のページ・株価データ・予測結果は引き続き Basic 認証で保護されます
 (`src/proxy.ts` 参照)。開発中は `disable: true` にしており、Service Worker は本番ビルドでのみ有効です。
 
+## テスト・CI
+
+`src/lib/` 配下のロジック(銘柄コード検証・予測計算・Stooq CSV パース)は Vitest で単体テスト済みです
+(`npm run test`)。Stooq への実通信はモックしており、外部ネットワークには依存しません。
+
+`.github/workflows/ci.yml` により、`main` への push と Pull Request で
+lint・test・build が自動実行されます。
+
 ## 開発状況
 
 - [x] プロジェクト初期セットアップ(雛形作成・Basic 認証・セキュリティヘッダー)
 - [x] 銘柄コード入力 → 過去株価・将来予測グラフ表示(`/` → `/stocks/[code]`)
 - [x] PWA 対応(manifest・Service Worker・アイコン)
+- [x] 単体テスト・CI(GitHub Actions)整備
 - [ ] Vercel へのデプロイ(後工程で実施予定)
 - [ ] J-Quants API への切り替え(銘柄名検索を含む)
 
