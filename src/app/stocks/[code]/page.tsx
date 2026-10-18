@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import StockChart from "@/components/StockChart";
 import { forecastLinearTrend } from "@/lib/forecast/linearRegression";
-import { StockDataNotFoundError, fetchDailyHistory } from "@/lib/stocks/stooqClient";
+import {
+  JQuantsConfigError,
+  StockDataNotFoundError,
+  fetchDailyHistory,
+} from "@/lib/stocks/jquantsClient";
 import { isValidStockCode } from "@/lib/stocks/validation";
 
 export default async function StockDetailPage(props: PageProps<"/stocks/[code]">) {
@@ -20,6 +24,9 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
   } catch (error) {
     if (error instanceof StockDataNotFoundError) {
       errorMessage = `銘柄コード「${code}」のデータが見つかりませんでした。`;
+    } else if (error instanceof JQuantsConfigError) {
+      console.error(error);
+      errorMessage = "株価データAPIが未設定です(JQUANTS_API_KEY)。管理者にご確認ください。";
     } else {
       console.error(error);
       errorMessage = "株価データの取得に失敗しました。時間をおいて再度お試しください。";
@@ -42,7 +49,7 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
         <>
           <StockChart history={history} forecast={forecastLinearTrend(history)} />
           <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-500">
-            過去の株価データは Stooq
+            過去の株価データは J-Quants API
             から取得しています。予測は直近30営業日の終値から算出した単純な線形トレンドであり、投資助言ではありません。投資判断はご自身の責任で行ってください。
           </p>
         </>
