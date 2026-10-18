@@ -2,11 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import StockChart from "@/components/StockChart";
 import { forecastLinearTrend } from "@/lib/forecast/linearRegression";
-import {
-  JQuantsConfigError,
-  StockDataNotFoundError,
-  fetchDailyHistory,
-} from "@/lib/stocks/jquantsClient";
+import { JQuantsConfigError, StockDataNotFoundError } from "@/lib/stocks/jquantsClient";
+import { fetchStockHistory } from "@/lib/stocks/stockHistory";
 import { isValidStockCode } from "@/lib/stocks/validation";
 
 export default async function StockDetailPage(props: PageProps<"/stocks/[code]">) {
@@ -17,10 +14,10 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
   }
 
   let errorMessage: string | null = null;
-  let history: Awaited<ReturnType<typeof fetchDailyHistory>> | null = null;
+  let history: Awaited<ReturnType<typeof fetchStockHistory>> | null = null;
 
   try {
-    history = await fetchDailyHistory(code);
+    history = await fetchStockHistory(code);
   } catch (error) {
     if (error instanceof StockDataNotFoundError) {
       errorMessage = `銘柄コード「${code}」のデータが見つかりませんでした。`;
@@ -50,10 +47,10 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
           <StockChart history={history} forecast={forecastLinearTrend(history)} />
           <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-500">
             過去の株価データは J-Quants API(無料プラン)から取得しています。無料プランの仕様上、
-            直近約3ヶ月分のデータには遅延があるため、グラフの実績は数ヶ月前までの情報が中心になります。
-            予測は、その実績データから算出した線形トレンドを本日以降に延長したものであり、
-            実績とのあいだに空白期間がある点にご留意ください。投資助言ではなく、
-            投資判断はご自身の責任で行ってください。
+            直近約3ヶ月分のデータには遅延があるため、その期間は Yahoo!
+            ファイナンスの非公式エンドポイントから補完を試みています(取得できない場合は空白のままになります)。
+            予測は、実績データから算出した線形トレンドを本日以降に延長したものです。
+            投資助言ではなく、投資判断はご自身の責任で行ってください。
           </p>
         </>
       )}
