@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PricePoint } from "@/lib/stocks/types";
 import { forecastLinearTrend } from "./linearRegression";
 
@@ -16,6 +16,7 @@ const BUSINESS_DAY_DATES = [
   "2024-01-11",
   "2024-01-12",
 ];
+const LAST_HISTORY_DATE = BUSINESS_DAY_DATES[BUSINESS_DAY_DATES.length - 1];
 
 const UPTREND_HISTORY: PricePoint[] = BUSINESS_DAY_DATES.map((date, i) => ({
   date,
@@ -27,13 +28,30 @@ function isWeekday(isoDate: string): boolean {
   return day !== 0 && day !== 6;
 }
 
+function setToday(isoDate: string) {
+  vi.setSystemTime(new Date(`${isoDate}T00:00:00Z`));
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("forecastLinearTrend", () => {
   it("returns an empty forecast when there is fewer than 2 history points", () => {
+    setToday(LAST_HISTORY_DATE);
     expect(forecastLinearTrend([])).toEqual([]);
     expect(forecastLinearTrend([{ date: "2024-01-01", close: 100 }])).toEqual([]);
   });
 
-  it("extrapolates a perfect linear trend and skips weekends", () => {
+  it("extrapolates a perfect linear trend from today when today is right after the data", () => {
+    // "Today" equal to the last history date is the gap=0 edge case: the
+    // forecast should behave the same as extrapolating straight from the
+    // last known close.
+    setToday(LAST_HISTORY_DATE);
     const forecast = forecastLinearTrend(UPTREND_HISTORY);
 
     expect(forecast).toHaveLength(14);
@@ -49,12 +67,33 @@ describe("forecastLinearTrend", () => {
     }
   });
 
+  it("anchors the forecast at today instead of the last history date when they differ", () => {
+    // A 3-week gap between the last available close and "today" (e.g. a
+    // delayed data source). The forecast should start just after today,
+    // not just after the stale history.
+    setToday("2024-02-01");
+    const forecast = forecastLinearTrend(UPTREND_HISTORY);
+
+    expect(forecast[0].date).toBe("2024-02-02");
+    for (const point of forecast) {
+      expect(new Date(`${point.date}T00:00:00Z`).getTime()).toBeGreaterThan(
+        new Date(`${LAST_HISTORY_DATE}T00:00:00Z`).getTime(),
+      );
+      expect(isWeekday(point.date)).toBe(true);
+    }
+    // Extrapolating further out along the same trend yields a higher value
+    // than the gap=0 case (120 for the first forecast point).
+    expect(forecast[0].predictedClose).toBeGreaterThan(120);
+  });
+
   it("respects the forecastDays option", () => {
+    setToday(LAST_HISTORY_DATE);
     const forecast = forecastLinearTrend(UPTREND_HISTORY, { forecastDays: 3 });
     expect(forecast).toHaveLength(3);
   });
 
   it("clamps predicted prices at 0 instead of going negative", () => {
+    setToday("2024-01-02");
     const history: PricePoint[] = [
       { date: "2024-01-01", close: 10 },
       { date: "2024-01-02", close: 0 },

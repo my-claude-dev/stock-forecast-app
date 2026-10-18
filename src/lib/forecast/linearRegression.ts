@@ -43,13 +43,23 @@ export function forecastLinearTrend(
   const slope = denominator === 0 ? 0 : numerator / denominator;
   const intercept = yMean - slope * xMean;
 
+  // Anchor the forecast at "now" rather than at the last available history
+  // date: free data sources often lag by weeks/months (see
+  // jquantsClient.ts), so the most recent close on hand may be old. The
+  // trend itself still comes entirely from real historical closes; only
+  // the projection target shifts to cover the actual future from today.
   const lastDate = new Date(`${recent[n - 1].date}T00:00:00Z`);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const gapTradingDays = countTradingDaysBetween(lastDate, today);
+
   const forecast: ForecastPoint[] = [];
 
   for (let step = 1; step <= forecastDays; step++) {
-    const predictedClose = intercept + slope * (n - 1 + step);
+    const x = n - 1 + gapTradingDays + step;
+    const predictedClose = intercept + slope * x;
     forecast.push({
-      date: toIsoDate(addTradingDays(lastDate, step)),
+      date: toIsoDate(addTradingDays(today, step)),
       predictedClose: Math.max(0, Number(predictedClose.toFixed(2))),
     });
   }
@@ -68,6 +78,21 @@ function addTradingDays(date: Date, days: number): Date {
     }
   }
   return result;
+}
+
+// Counts weekdays strictly between `from` (exclusive) and `to` (inclusive).
+// Returns 0 (or negative, clamped to 0) if `to` is not after `from`.
+function countTradingDaysBetween(from: Date, to: Date): number {
+  let count = 0;
+  const cursor = new Date(from);
+  while (cursor.getTime() < to.getTime()) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const dayOfWeek = cursor.getUTCDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+  }
+  return Math.max(0, count);
 }
 
 function toIsoDate(date: Date): string {

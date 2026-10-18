@@ -63,17 +63,14 @@ function useIsDarkMode(): boolean {
 }
 
 function buildChartRows(history: PricePoint[], forecast: ForecastPoint[]): ChartRow[] {
+  // Forecast dates start from "today", which can be weeks/months after the
+  // last available history date (see jquantsClient.ts's data embargo). The
+  // two series are intentionally left disconnected rather than bridged, so
+  // the chart doesn't imply data exists across a gap it doesn't have.
   const rows: ChartRow[] = history.map((point) => ({
     date: point.date,
     actual: point.close,
   }));
-
-  const lastHistoryPoint = history.at(-1);
-  if (lastHistoryPoint && forecast.length > 0) {
-    // Bridge the two lines so the forecast appears to continue from the
-    // last actual close, instead of leaving a visual gap.
-    rows.push({ date: lastHistoryPoint.date, predicted: lastHistoryPoint.close });
-  }
 
   for (const point of forecast) {
     rows.push({ date: point.date, predicted: point.predictedClose });
@@ -135,7 +132,7 @@ export default function StockChart({ history, forecast }: StockChartProps) {
   const isDark = useIsDarkMode();
   const colors = isDark ? PALETTE.dark : PALETTE.light;
   const rows = buildChartRows(history, forecast);
-  const forecastStartDate = history.at(-1)?.date;
+  const forecastStartDate = forecast.at(0)?.date;
 
   return (
     <div className="w-full">
