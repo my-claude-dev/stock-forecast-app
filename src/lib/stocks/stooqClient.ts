@@ -3,6 +3,15 @@ import type { PricePoint } from "./types";
 
 const STOOQ_HISTORY_URL = "https://stooq.com/q/d/l/";
 
+// Stooq returns 403 to requests that look scripted. These headers mimic a
+// real browser request closely enough to get past that check.
+const BROWSER_LIKE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  Accept: "text/csv,text/plain,*/*",
+  "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+};
+
 export class InvalidStockCodeError extends Error {}
 export class StockDataNotFoundError extends Error {}
 
@@ -21,7 +30,7 @@ export async function fetchDailyHistory(code: string): Promise<PricePoint[]> {
   const url = `${STOOQ_HISTORY_URL}?s=${encodeURIComponent(symbol)}&i=d`;
 
   const response = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; stock-forecast-app)" },
+    headers: BROWSER_LIKE_HEADERS,
     cache: "no-store",
   });
 
