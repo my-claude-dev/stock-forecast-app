@@ -11,7 +11,14 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self'",
+      // 'unsafe-inline' is required for Next.js's own hydration bootstrap
+      // scripts to run. Without it the page renders but React never
+      // hydrates, so all client-side interactivity (including forms)
+      // silently falls back to native browser behavior. The stricter
+      // alternative is a per-request nonce via proxy.ts, which forces
+      // every page to render dynamically (no static optimization) — not
+      // worth it here since this app takes no untrusted user content.
+      "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "connect-src 'self'",
