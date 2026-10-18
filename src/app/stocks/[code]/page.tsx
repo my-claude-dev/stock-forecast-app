@@ -2,9 +2,31 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import StockChart from "@/components/StockChart";
 import { forecastLinearTrend } from "@/lib/forecast/linearRegression";
+import { fetchUsdJpyHistory } from "@/lib/stocks/fxClient";
 import { JQuantsConfigError, StockDataNotFoundError } from "@/lib/stocks/jquantsClient";
 import { fetchStockHistory } from "@/lib/stocks/stockHistory";
+import type { PricePoint } from "@/lib/stocks/types";
 import { isValidStockCode } from "@/lib/stocks/validation";
+
+// Wide enough to comfortably cover the forecast's 30-trading-day lookback
+// window regardless of where it falls (recent history may run up to
+// "today" or lag behind it — see stockHistory.ts).
+const FX_HISTORY_CALENDAR_DAYS = 200;
+
+async function fetchFxHistorySafely(): Promise<PricePoint[] | undefined> {
+  const to = new Date();
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - FX_HISTORY_CALENDAR_DAYS);
+  const toIso = to.toISOString().slice(0, 10);
+  const fromIso = from.toISOString().slice(0, 10);
+
+  try {
+    return await fetchUsdJpyHistory(fromIso, toIso);
+  } catch (error) {
+    console.error("USD/JPY fetch failed, forecasting without FX adjustment:", error);
+    return undefined;
+  }
+}
 
 function formatYen(value: number): string {
   return `¥${Math.round(value).toLocaleString("ja-JP")}`;
@@ -16,12 +38,20 @@ function formatSignedYen(value: number): string {
   return `${sign}${rounded.toLocaleString("ja-JP")}円`;
 }
 
+function formatRate(value: number): string {
+  return value.toFixed(2);
+}
+
 export default async function StockDetailPage(props: PageProps<"/stocks/[code]">) {
   const { code } = await props.params;
 
   if (!isValidStockCode(code)) {
     notFound();
   }
+
+  // Kicked off before awaiting the stock history so both requests fly
+  // concurrently; fetchFxHistorySafely never rejects.
+  const fxHistoryPromise = fetchFxHistorySafely();
 
   let errorMessage: string | null = null;
   let history: Awaited<ReturnType<typeof fetchStockHistory>> | null = null;
@@ -40,7 +70,8 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
     }
   }
 
-  const forecastSummary = history ? forecastLinearTrend(history) : null;
+  const fxHistory = await fxHistoryPromise;
+  const forecastSummary = history ? forecastLinearTrend(history, { fxHistory }) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8">
@@ -61,12 +92,31 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
           {forecastSummary.basis && (
             <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-500">
               <strong className="text-zinc-600 dark:text-zinc-400">予測の根拠: </strong>
-              直近{forecastSummary.basis.lookbackTradingDays}営業日の終値から、1営業日あたり
-              {formatSignedYen(forecastSummary.basis.slopePerTradingDay)}
-              の傾き(線形回帰)を算出し、直近の実績値({forecastSummary.basis.anchorDate} 時点{" "}
-              {formatYen(forecastSummary.basis.anchorClose)})を起点にこの傾きで延長しています。
+              {forecastSummary.basis.fx ? (
+                <>
+                  直近{forecastSummary.basis.lookbackTradingDays}
+                  営業日の終値と米ドル/円の為替レートを用いた重回帰分析により、為替の影響を
+                  統計的に取り除いた価格トレンド(1営業日あたり
+                  {formatSignedYen(forecastSummary.basis.slopePerTradingDay)})を算出し、
+                  直近の実績値({forecastSummary.basis.anchorDate} 時点{" "}
+                  {formatYen(forecastSummary.basis.anchorClose)})を起点にこの傾きで延長しています。
+                  為替は今後も直近レート(1ドル=
+                  {formatRate(forecastSummary.basis.fx.anchorRate)}円)で横ばいと仮定しており、
+                  為替相場自体の先行きは予測していません(参考:
+                  この期間は為替が1円動くと株価が約
+                  {formatSignedYen(forecastSummary.basis.fx.coefficientPerYen)}
+                  動く傾向が見られました)。
+                </>
+              ) : (
+                <>
+                  直近{forecastSummary.basis.lookbackTradingDays}営業日の終値から、1営業日あたり
+                  {formatSignedYen(forecastSummary.basis.slopePerTradingDay)}
+                  の傾き(線形回帰)を算出し、直近の実績値({forecastSummary.basis.anchorDate} 時点{" "}
+                  {formatYen(forecastSummary.basis.anchorClose)})を起点にこの傾きで延長しています。
+                </>
+              )}{" "}
               過去の値動きがそのまま続くと仮定した単純な機械的試算であり、決算発表や
-              相場全体の変動などは一切考慮していません。期間が先になるほど誤差は大きくなります。
+              債券相場・ニュース等は考慮していません。期間が先になるほど誤差は大きくなります。
             </p>
           )}
 

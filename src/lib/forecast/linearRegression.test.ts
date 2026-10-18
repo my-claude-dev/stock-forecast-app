@@ -129,4 +129,63 @@ describe("forecastLinearTrend", () => {
 
     expect(forecast).toEqual([{ date: "2024-01-03", predictedClose: 0 }]);
   });
+
+  describe("with fxHistory", () => {
+    // fx has its own zigzag-but-rising pattern, not a pure linear function
+    // of the trading-day index, so it's not collinear with it.
+    const FX_RATES = [150, 151, 150, 152, 151, 153, 152, 154, 153, 155];
+    // close is an exact linear combination of (index, fx): 100 + 2*i + 3*fx[i].
+    const FX_HISTORY: PricePoint[] = BUSINESS_DAY_DATES.map((date, i) => ({
+      date,
+      close: FX_RATES[i],
+    }));
+    const PRICE_WITH_FX_HISTORY: PricePoint[] = BUSINESS_DAY_DATES.map((date, i) => ({
+      date,
+      close: 100 + 2 * i + 3 * FX_RATES[i],
+    }));
+    const LAST_CLOSE_WITH_FX = 100 + 2 * 9 + 3 * FX_RATES[9];
+
+    it("separates the FX contribution from the pure time trend", () => {
+      setToday(LAST_HISTORY_DATE);
+      const { basis } = forecastLinearTrend(PRICE_WITH_FX_HISTORY, {
+        fxHistory: FX_HISTORY,
+        forecastDays: 1,
+      });
+
+      expect(basis?.fx).not.toBeNull();
+      // Recovered coefficients should match the exact generating formula.
+      expect(basis?.slopePerTradingDay).toBeCloseTo(2, 1);
+      expect(basis?.fx?.coefficientPerYen).toBeCloseTo(3, 1);
+      expect(basis?.anchorClose).toBeCloseTo(LAST_CLOSE_WITH_FX, 1);
+      expect(basis?.fx?.anchorRate).toBe(FX_RATES[9]);
+    });
+
+    it("projects forward holding FX flat, using only the time-trend slope", () => {
+      setToday(LAST_HISTORY_DATE);
+      const { points: forecast, basis } = forecastLinearTrend(PRICE_WITH_FX_HISTORY, {
+        fxHistory: FX_HISTORY,
+        forecastDays: 1,
+      });
+
+      // FX held flat means the forecast step is anchorClose + slope*1, with
+      // no separate FX-driven jump even though b2 is nonzero.
+      expect(forecast[0].predictedClose).toBeCloseTo(
+        basis!.anchorClose + basis!.slopePerTradingDay,
+        0,
+      );
+    });
+
+    it("falls back to the simple trend when FX data doesn't cover every date", () => {
+      setToday(LAST_HISTORY_DATE);
+      const incompleteFx = FX_HISTORY.slice(1); // missing the first date
+
+      const { basis } = forecastLinearTrend(UPTREND_HISTORY, {
+        fxHistory: incompleteFx,
+        forecastDays: 1,
+      });
+
+      expect(basis?.fx).toBeNull();
+      expect(basis?.slopePerTradingDay).toBeCloseTo(2);
+    });
+  });
 });
