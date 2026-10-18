@@ -63,6 +63,25 @@ describe("fetchDailyHistory", () => {
     expect((options.headers as Record<string, string>)["x-api-key"]).toBe("test-key");
   });
 
+  it("offsets the 'to' date to stay inside the Free plan's data embargo", async () => {
+    // The Free plan rejects requests for the most recent ~12 weeks of data
+    // with a 400. Regression test for that boundary.
+    vi.stubEnv("JQUANTS_API_KEY", "test-key");
+    const fetchMock = mockFetch(jsonResponse({ daily_quotes: [] }));
+
+    await fetchDailyHistory("7203").catch(() => {});
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    const toParam = new URL(url).searchParams.get("to");
+    expect(toParam).toBeTruthy();
+
+    const toDate = new Date(
+      `${toParam!.slice(0, 4)}-${toParam!.slice(4, 6)}-${toParam!.slice(6, 8)}T00:00:00Z`,
+    );
+    const daysAgo = (Date.now() - toDate.getTime()) / (1000 * 60 * 60 * 24);
+    expect(daysAgo).toBeGreaterThanOrEqual(89);
+  });
+
   it("parses bars under the daily_quotes wrapper key", async () => {
     vi.stubEnv("JQUANTS_API_KEY", "test-key");
     mockFetch(

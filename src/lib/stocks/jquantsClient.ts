@@ -2,8 +2,15 @@ import { isValidStockCode } from "./validation";
 import type { PricePoint } from "./types";
 
 const JQUANTS_API_BASE_URL = "https://api.jquants.com/v2";
-// Calendar days of history to request; comfortably covers the ~30 trading
-// days the forecast model looks back on, with room for weekends/holidays.
+// The Free plan embargoes the most recent ~12 weeks of data (confirmed via
+// a live 400 response: "Your subscription covers ... 2024-07-26 ~
+// 2026-07-26" on a request made 2026-10-18, exactly 84 days earlier). A
+// few extra days of buffer avoid tripping the boundary again due to
+// timezone/day-boundary rounding between our clock and J-Quants'.
+const FREE_PLAN_DELAY_DAYS = 90;
+// Calendar days of history to request on top of the delay offset;
+// comfortably covers the ~30 trading days the forecast model looks back
+// on, with room for weekends/holidays.
 const HISTORY_DAYS = 200;
 const MAX_PAGES = 20;
 
@@ -83,6 +90,7 @@ export async function fetchDailyHistory(code: string): Promise<PricePoint[]> {
   }
 
   const to = new Date();
+  to.setUTCDate(to.getUTCDate() - FREE_PLAN_DELAY_DAYS);
   const from = new Date(to);
   from.setUTCDate(from.getUTCDate() - HISTORY_DAYS);
 
