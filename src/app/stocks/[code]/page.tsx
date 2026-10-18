@@ -50,8 +50,9 @@ export default async function StockDetailPage(props: PageProps<"/stocks/[code]">
           <StockChart history={history} forecast={forecastLinearTrend(history)} />
           <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-500">
             過去の株価データは J-Quants API(無料プラン)から取得しています。無料プランの仕様上、
-            直近約3ヶ月分のデータには遅延があるため、グラフは数ヶ月前までの情報が中心になります。
-            予測は直近30営業日の終値から算出した単純な線形トレンドであり、投資助言ではありません。
+            直近約3ヶ月分のデータには遅延があるため、グラフの実績は数ヶ月前までの情報が中心になります。
+            予測は、その実績データから算出した線形トレンドを本日以降に延長したものであり、
+            実績とのあいだに空白期間がある点にご留意ください。投資助言ではなく、
             投資判断はご自身の責任で行ってください。
           </p>
         </>
