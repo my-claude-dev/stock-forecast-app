@@ -17,6 +17,7 @@ const BUSINESS_DAY_DATES = [
   "2024-01-12",
 ];
 const LAST_HISTORY_DATE = BUSINESS_DAY_DATES[BUSINESS_DAY_DATES.length - 1];
+const LAST_HISTORY_CLOSE = 100 + 2 * (BUSINESS_DAY_DATES.length - 1);
 
 const UPTREND_HISTORY: PricePoint[] = BUSINESS_DAY_DATES.map((date, i) => ({
   date,
@@ -43,8 +44,11 @@ afterEach(() => {
 describe("forecastLinearTrend", () => {
   it("returns an empty forecast when there is fewer than 2 history points", () => {
     setToday(LAST_HISTORY_DATE);
-    expect(forecastLinearTrend([])).toEqual([]);
-    expect(forecastLinearTrend([{ date: "2024-01-01", close: 100 }])).toEqual([]);
+    expect(forecastLinearTrend([])).toEqual({ points: [], basis: null });
+    expect(forecastLinearTrend([{ date: "2024-01-01", close: 100 }])).toEqual({
+      points: [],
+      basis: null,
+    });
   });
 
   it("extrapolates a perfect linear trend from today when today is right after the data", () => {
@@ -52,7 +56,7 @@ describe("forecastLinearTrend", () => {
     // forecast should behave the same as extrapolating straight from the
     // last known close.
     setToday(LAST_HISTORY_DATE);
-    const forecast = forecastLinearTrend(UPTREND_HISTORY);
+    const { points: forecast } = forecastLinearTrend(UPTREND_HISTORY, { forecastDays: 14 });
 
     expect(forecast).toHaveLength(14);
     expect(forecast[0]).toEqual({ date: "2024-01-15", predictedClose: 120 });
@@ -67,12 +71,18 @@ describe("forecastLinearTrend", () => {
     }
   });
 
+  it("defaults to a 90 trading-day forecast window", () => {
+    setToday(LAST_HISTORY_DATE);
+    const { points: forecast } = forecastLinearTrend(UPTREND_HISTORY);
+    expect(forecast).toHaveLength(90);
+  });
+
   it("anchors the forecast at today instead of the last history date when they differ", () => {
     // A 3-week gap between the last available close and "today" (e.g. a
     // delayed data source). The forecast should start just after today,
     // not just after the stale history.
     setToday("2024-02-01");
-    const forecast = forecastLinearTrend(UPTREND_HISTORY);
+    const { points: forecast } = forecastLinearTrend(UPTREND_HISTORY);
 
     expect(forecast[0].date).toBe("2024-02-02");
     for (const point of forecast) {
@@ -86,9 +96,25 @@ describe("forecastLinearTrend", () => {
     expect(forecast[0].predictedClose).toBeGreaterThan(120);
   });
 
+  it("joins the forecast seamlessly to the last actual close (gap=0)", () => {
+    // The first forecast point should be exactly one trading day's worth
+    // of slope away from the real last close, not from wherever the
+    // regression line's own fitted value happens to land.
+    setToday(LAST_HISTORY_DATE);
+    const { points: forecast, basis } = forecastLinearTrend(UPTREND_HISTORY);
+
+    expect(basis).not.toBeNull();
+    expect(basis?.anchorClose).toBe(LAST_HISTORY_CLOSE);
+    expect(basis?.anchorDate).toBe(LAST_HISTORY_DATE);
+    expect(basis?.slopePerTradingDay).toBeCloseTo(2);
+    expect(forecast[0].predictedClose - basis!.anchorClose).toBeCloseTo(
+      basis!.slopePerTradingDay,
+    );
+  });
+
   it("respects the forecastDays option", () => {
     setToday(LAST_HISTORY_DATE);
-    const forecast = forecastLinearTrend(UPTREND_HISTORY, { forecastDays: 3 });
+    const { points: forecast } = forecastLinearTrend(UPTREND_HISTORY, { forecastDays: 3 });
     expect(forecast).toHaveLength(3);
   });
 
@@ -99,7 +125,7 @@ describe("forecastLinearTrend", () => {
       { date: "2024-01-02", close: 0 },
     ];
 
-    const forecast = forecastLinearTrend(history, { forecastDays: 1 });
+    const { points: forecast } = forecastLinearTrend(history, { forecastDays: 1 });
 
     expect(forecast).toEqual([{ date: "2024-01-03", predictedClose: 0 }]);
   });
